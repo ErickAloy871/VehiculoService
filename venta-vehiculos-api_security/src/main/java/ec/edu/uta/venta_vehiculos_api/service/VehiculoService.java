@@ -196,6 +196,7 @@ public class VehiculoService {
         v.setModelo(d.modelo().trim());
         v.setAnio(d.anio());
         v.setChasis(chasis);
+        v.setColor(d.color() != null && !d.color().trim().isEmpty() ? d.color().trim() : null);
         v.setPrecio(d.precio());
     }
 }
