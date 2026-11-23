@@ -1,0 +1,46 @@
+# Dependencias y entornos
+node_modules/
+**/node_modules/
+.venv/
+**/.venv/
+venv/
+**/venv/
+
+# Compilados Java / Maven
+target/
+**/target/
+*.class
+
+# Compilados .NET / C#
+bin/
+**/bin/
+obj/
+**/obj/
+.vs/
+**/.vs/
+*.user
+*.suo
+
+# Python y pruebas
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+**/.pytest_cache/
+
+# IDEs
+.vscode/
+**/.vscode/
+.idea/
+**/.idea/
+
+# Builds frontend
+dist/
+**/dist/
+build/
+**/build/
+
+# Archivos de empaquetado y logs
+*.zip
+*.log

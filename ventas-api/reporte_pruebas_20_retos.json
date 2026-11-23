@@ -1,0 +1,362 @@
+[
+  {
+    "id": "AUTH_01",
+    "descripcion": "Autenticación usuario OPERADOR con JWT",
+    "metodo_url": "POST /oauth/token",
+    "entrada": "user=operador",
+    "esperado": "HTTP 200 con access_token",
+    "obtenido": "Token: True",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "AUTH_02",
+    "descripcion": "Rechazo de credenciales inválidas",
+    "metodo_url": "POST /oauth/token",
+    "entrada": "password=incorrecta",
+    "esperado": "HTTP 401",
+    "obtenido": "HTTP 401",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F05_01",
+    "descripcion": "Listar vehículos sin filtros",
+    "metodo_url": "GET /api/vehiculos",
+    "entrada": "Sin params",
+    "esperado": "HTTP 200",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F05_02",
+    "descripcion": "Listar vehículos solo por marca",
+    "metodo_url": "GET /api/vehiculos?marca=Chevrolet",
+    "entrada": "marca=Chevrolet",
+    "esperado": "HTTP 200",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F05_03",
+    "descripcion": "Listar vehículos solo por estado",
+    "metodo_url": "GET /api/vehiculos?estado=DISPONIBLE",
+    "entrada": "estado=DISPONIBLE",
+    "esperado": "HTTP 200",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F05_04",
+    "descripcion": "Listar vehículos por marca y estado",
+    "metodo_url": "GET /api/vehiculos?marca=Chevrolet&estado=DISPONIBLE",
+    "entrada": "marca & estado",
+    "esperado": "HTTP 200",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F05_05",
+    "descripcion": "Rechazo ante estado desconocido",
+    "metodo_url": "GET /api/vehiculos?estado=VOLANDO",
+    "entrada": "estado=VOLANDO",
+    "esperado": "HTTP 400",
+    "obtenido": "HTTP 400",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "S11_01",
+    "descripcion": "Modificación efectiva de precio mediante PATCH",
+    "metodo_url": "PATCH /api/vehiculos/12",
+    "entrada": "precio=26650.0",
+    "esperado": "HTTP 200",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "S11_02",
+    "descripcion": "Consultar historial de auditoría de precios",
+    "metodo_url": "GET /api/vehiculos/12/historial-precios",
+    "entrada": "vehiculoId=12",
+    "esperado": "HTTP 200 con registro",
+    "obtenido": "Items: 1",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F01_01",
+    "descripcion": "Creación de comprador asociado a operador",
+    "metodo_url": "POST /api/compradores",
+    "entrada": "doc=1804191834",
+    "esperado": "HTTP 201",
+    "obtenido": "HTTP 201",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F01_02",
+    "descripcion": "Operador visualiza sus compradores",
+    "metodo_url": "GET /api/compradores",
+    "entrada": "usuario=operador",
+    "esperado": "HTTP 200 con comprador creado",
+    "obtenido": "Encontrado: True",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F01_03",
+    "descripcion": "Aislamiento: usuario ajeno no ve compradores ajenos",
+    "metodo_url": "GET /api/compradores",
+    "entrada": "usuario=usuario02",
+    "esperado": "Comprador ajeno no presente",
+    "obtenido": "Presente: False",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "D07_01",
+    "descripcion": "Búsqueda de comprador por documento",
+    "metodo_url": "GET /api/compradores?buscar=1804191834",
+    "entrada": "buscar=1804191834",
+    "esperado": "HTTP 200 coincidencia",
+    "obtenido": "Items: 1",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F02_01",
+    "descripcion": "Consulta de comprador por ID (propietario)",
+    "metodo_url": "GET /api/compradores/3",
+    "entrada": "id=3",
+    "esperado": "HTTP 200",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F02_02",
+    "descripcion": "Rechazo al consultar comprador ajeno (no admin)",
+    "metodo_url": "GET /api/compradores/3",
+    "entrada": "usuario=usuario02",
+    "esperado": "HTTP 403",
+    "obtenido": "HTTP 403",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F02_03",
+    "descripcion": "Consulta de comprador inexistente",
+    "metodo_url": "GET /api/compradores/999999",
+    "entrada": "id=999999",
+    "esperado": "HTTP 404",
+    "obtenido": "HTTP 404",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "D08_01",
+    "descripcion": "Actualizar nombre y correo (documento inmutable)",
+    "metodo_url": "PUT /api/compradores/3",
+    "entrada": "nombre & correo",
+    "esperado": "HTTP 200 documento intacto",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "D08_02",
+    "descripcion": "Rechazo por formato de correo inválido",
+    "metodo_url": "PUT /api/compradores/3",
+    "entrada": "correo inválido",
+    "esperado": "HTTP 422",
+    "obtenido": "HTTP 422",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "VENTA_01",
+    "descripcion": "Registro de venta coordinada con Java",
+    "metodo_url": "POST /api/ventas",
+    "entrada": "vehiculoId=12",
+    "esperado": "HTTP 200/201",
+    "obtenido": "HTTP 201",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F03_01",
+    "descripcion": "Listado de ventas propias ordenadas DESC",
+    "metodo_url": "GET /api/ventas",
+    "entrada": "usuario=operador",
+    "esperado": "HTTP 200 lista de ventas",
+    "obtenido": "Ventas: 8",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F04_01",
+    "descripcion": "Filtro de ventas por estado COMPLETADA",
+    "metodo_url": "GET /api/ventas?estado=COMPLETADA",
+    "entrada": "estado=COMPLETADA",
+    "esperado": "HTTP 200 solo COMPLETADAS",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "F04_02",
+    "descripcion": "Rechazo por estado de venta inexistente",
+    "metodo_url": "GET /api/ventas?estado=ESTADO_FALSO",
+    "entrada": "estado=ESTADO_FALSO",
+    "esperado": "HTTP 422",
+    "obtenido": "HTTP 422",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "D06_01",
+    "descripcion": "Paginación con limit y offset",
+    "metodo_url": "GET /api/ventas?limit=5&offset=0",
+    "entrada": "limit=5, offset=0",
+    "esperado": "HTTP 200 con {items, total, limit, offset}",
+    "obtenido": "Total: 8",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "D06_02",
+    "descripcion": "Rechazo por limit > 50",
+    "metodo_url": "GET /api/ventas?limit=100",
+    "entrada": "limit=100",
+    "esperado": "HTTP 422",
+    "obtenido": "HTTP 422",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "D09_01",
+    "descripcion": "Resumen numérico y financiero de ventas",
+    "metodo_url": "GET /api/ventas/resumen",
+    "entrada": "usuario=operador",
+    "esperado": "HTTP 200 con conteos y montos",
+    "obtenido": "Completadas: 6, Total: $147950.0",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "D10_01",
+    "descripcion": "Emisión de comprobante JSON de venta confirmada",
+    "metodo_url": "GET /api/ventas/8/comprobante",
+    "entrada": "id=8",
+    "esperado": "HTTP 200 con comprobante oficial",
+    "obtenido": "Comprobante: CMP-000008",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "D10_02",
+    "descripcion": "Rechazo de comprobante para usuario ajeno",
+    "metodo_url": "GET /api/ventas/8/comprobante",
+    "entrada": "usuario=usuario02",
+    "esperado": "HTTP 403",
+    "obtenido": "HTTP 403",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "S12_01",
+    "descripcion": "Consulta de panel de incidencias",
+    "metodo_url": "GET /api/ventas/incidencias",
+    "entrada": "usuario=operador",
+    "esperado": "HTTP 200 con resumen de incidencias",
+    "obtenido": "En revisión: 0",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "S14_01",
+    "descripcion": "Propagación de X-Correlation-Id en solicitudes",
+    "metodo_url": "GET /health",
+    "entrada": "X-Correlation-Id: corr-audit-e04e4654",
+    "esperado": "Header coincidente: corr-audit-e04e4654",
+    "obtenido": "Header: corr-audit-e04e4654",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "S15_01",
+    "descripcion": "Rechazo de conciliación manual a OPERADOR",
+    "metodo_url": "POST /api/ventas/8/conciliar",
+    "entrada": "usuario=operador",
+    "esperado": "HTTP 403",
+    "obtenido": "HTTP 403",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "S15_02",
+    "descripcion": "Control de estado terminal en conciliación (409)",
+    "metodo_url": "POST /api/ventas/8/conciliar",
+    "entrada": "usuario=admin",
+    "esperado": "HTTP 409",
+    "obtenido": "HTTP 409",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "E16_01",
+    "descripcion": "Venta única bajo concurrencia paralela",
+    "metodo_url": "2x POST /api/ventas",
+    "entrada": "vehiculoId=13",
+    "esperado": "Máximo 1 venta completada",
+    "obtenido": "Códigos: [409, 201]",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "E18_01",
+    "descripcion": "Verificación de eventos en tabla outbox_eventos",
+    "metodo_url": "SELECT outbox_eventos",
+    "entrada": "Base MySQL",
+    "esperado": "Eventos outbox registrados",
+    "obtenido": "Total filas: 7",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "E19_01",
+    "descripcion": "Comprobación de salud del API Gateway",
+    "metodo_url": "GET /health",
+    "entrada": "Puerto 8090",
+    "esperado": "HTTP 200 UP",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "E19_02",
+    "descripcion": "Reenvío transparente de vehículos vía Gateway",
+    "metodo_url": "GET /cliente/vehiculos",
+    "entrada": "Headers JWT",
+    "esperado": "HTTP 200 con vehículos",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  },
+  {
+    "id": "E19_03",
+    "descripcion": "Reenvío transparente de ventas vía Gateway",
+    "metodo_url": "GET /cliente/ventas",
+    "entrada": "Headers JWT",
+    "esperado": "HTTP 200 con ventas",
+    "obtenido": "HTTP 200",
+    "exito": true,
+    "detalle": ""
+  }
+]
