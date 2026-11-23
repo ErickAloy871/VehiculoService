@@ -1,72 +1,87 @@
 /**
- * Cliente HTTP de la API de vehículos.
- *
- * Responsabilidad: enviar GET, agregar JWT e interpretar HTTP/JSON.
- * No contiene código visual, consultas SQL ni reglas de negocio.
- *
- * La ruta es relativa porque el proxy de Vite (/api) conecta con Java.
+ * Cliente HTTP para la API de vehículos y consulta de ventas vía NGINX (:8090).
  */
 export async function listarVehiculos(token) {
-  // Headers es el objeto estándar del navegador para cabeceras HTTP.
   const headers = new Headers({ Accept: 'application/json' });
 
-  // Solo se envía Authorization si existe un token escrito por el usuario.
-  // Dejarlo vacío permite comprobar el 401 real del backend.
-  if (token.trim()) {
+  if (token && token.trim()) {
     headers.set('Authorization', `Bearer ${token.trim()}`);
   }
 
   let respuesta;
   try {
-    // fetch solicita recursos sin bloquear la interfaz de React.
     respuesta = await fetch('/api/vehiculos', {
       method: 'GET',
       headers,
-      cache: 'no-store', // Evita mostrar un catálogo almacenado en caché.
+      cache: 'no-store',
     });
   } catch {
-    // Un fallo de red impide recibir una respuesta HTTP.
-    throw new Error('No se pudo conectar. Verifique el servidor y la red.');
+    throw new Error('No se pudo conectar con el Gateway NGINX (:8090).');
   }
 
-  // fetch NO lanza una excepción automática por códigos como 401 o 403.
-  // Por eso, se debe verificar manualmente respuesta.ok.
   if (!respuesta.ok) {
-    const mensajes = {
-      401: 'HTTP 401: Falta el JWT o el token ya no es válido.',
-      403: 'HTTP 403: El usuario no tiene permiso para consultar.',
-      404: 'HTTP 404: No existe la ruta /api/vehiculos.',
-      500: 'HTTP 500: Error del servidor o de la conexión con la API Java.',
-      502: 'HTTP 502: El servidor intermedio no pudo contactar a Java.',
-      503: 'HTTP 503: El servicio de vehículos no está disponible.',
-    };
-
-    const error = new Error(
-      mensajes[respuesta.status] ?? `La API devolvió HTTP ${respuesta.status}.`,
-    );
-    error.status = respuesta.status; // La interfaz podrá mostrar el código.
+    const error = new Error(`HTTP ${respuesta.status}: Fallo al consultar vehículos.`);
+    error.status = respuesta.status;
     throw error;
   }
 
-  // Una API puede responder 204 cuando no hay contenido.
   if (respuesta.status === 204) {
     return { vehiculos: [], codigoHttp: 204 };
   }
 
   let datos;
   try {
-    // Convertir la respuesta JSON en un arreglo de objetos JavaScript.
     datos = await respuesta.json();
   } catch {
     throw new Error('La API respondió, pero el JSON no pudo interpretarse.');
   }
 
-  // Contrato de esta práctica: GET /api/vehiculos devuelve una lista.
-  // Si Java envía otro formato, se debe ajustar según el contrato real.
   if (!Array.isArray(datos)) {
-    throw new Error('Se esperaba una lista JSON de vehículos (un arreglo).');
+    throw new Error('Se esperaba una lista JSON de vehículos.');
   }
 
   return { vehiculos: datos, codigoHttp: respuesta.status };
 }
 
+/**
+ * Consulta el listado de ventas confirmadas desde GET /api/ventas.
+ * No implementa métodos POST de venta (exclusivo de PWA).
+ */
+export async function listarVentas(token) {
+  const headers = new Headers({ Accept: 'application/json' });
+
+  if (token && token.trim()) {
+    headers.set('Authorization', `Bearer ${token.trim()}`);
+  }
+
+  let respuesta;
+  try {
+    respuesta = await fetch('/api/ventas', {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+  } catch {
+    throw new Error('No se pudo conectar con el servicio de ventas (:8000 vía NGINX).');
+  }
+
+  if (!respuesta.ok) {
+    const error = new Error(`HTTP ${respuesta.status}: Error al consultar ventas.`);
+    error.status = respuesta.status;
+    throw error;
+  }
+
+  let datos;
+  try {
+    datos = await respuesta.json();
+  } catch {
+    throw new Error('La respuesta de ventas no es un JSON válido.');
+  }
+
+  const items = Array.isArray(datos) ? datos : (Array.isArray(datos.items) ? datos.items : []);
+  return {
+    ventas: items,
+    codigoHttp: respuesta.status,
+    total: datos.total ?? items.length
+  };
+}

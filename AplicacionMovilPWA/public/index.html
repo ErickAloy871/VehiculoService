@@ -4,11 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#103b56" />
-    <meta name="description" content="Consulta móvil de vehículos a través de una API REST con autenticación JWT." />
+    <meta name="description" content="PWA móvil para el registro exclusivo de ventas con autenticación JWT e Idempotency-Key." />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <title>Vehículos Móvil · PWA</title>
+    <title>PWA Móvil · Ventas de Vehículos</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
@@ -18,47 +18,127 @@
   <body>
     <div class="app">
       <header class="encabezado">
-        <div class="logo" aria-hidden="true">🚙</div>
+        <div class="logo" aria-hidden="true">📱</div>
         <div>
           <p class="eyebrow">APLICACIÓN MÓVIL · PWA</p>
-          <h1>Consulta de vehículos</h1>
-          <p class="subtitulo">Cliente de la API Java Spring Boot</p>
+          <h1>Venta de Vehículos</h1>
+          <p class="subtitulo">Registro exclusivo de ventas vía NGINX (:8090)</p>
         </div>
       </header>
 
       <main>
-        <section class="panel" aria-labelledby="titulo-acceso">
+        <!-- SECCIÓN 1: LOGIN -->
+        <section class="panel" aria-labelledby="titulo-login">
           <div class="seccion-cabecera">
             <span class="paso">01</span>
-            <h2 id="titulo-acceso">Acceso con JWT</h2>
+            <h2 id="titulo-login">Inicio de Sesión</h2>
           </div>
-          <p class="ayuda">Se utiliza un token obtenido mediante el servicio de autenticación.</p>
-          <form id="formulario" novalidate>
-            <label for="jwt">Token de usuario</label>
-            <div class="fila-token">
-              <input id="jwt" type="password" placeholder="Pegar JWT de Postman" autocapitalize="none" autocomplete="off" spellcheck="false" />
-              <button id="alternarToken" type="button" class="boton-secundario" aria-label="Mostrar token" aria-pressed="false">Mostrar</button>
+          <p class="ayuda">Autenticación mediante <code>POST /oauth/token</code> hacia NGINX.</p>
+          
+          <form id="form-login" novalidate>
+            <div class="campo">
+              <label for="login-usuario">Usuario</label>
+              <input id="login-usuario" type="text" value="operador" placeholder="Ej. operador" autocomplete="username" />
+            </div>
+            <div class="campo">
+              <label for="login-password">Contraseña</label>
+              <input id="login-password" type="password" value="operador123" placeholder="Contraseña" autocomplete="current-password" />
             </div>
             <div class="acciones">
-              <button id="consultar" class="boton-primario" type="submit">Consultar vehículos</button>
-              <button id="borrar" class="boton-discreto" type="button">Borrar token</button>
+              <button id="btn-login" class="boton-primario" type="submit">Iniciar Sesión</button>
+              <button id="btn-logout" class="boton-discreto" type="button" style="display:none;">Cerrar Sesión</button>
             </div>
           </form>
-          <div id="mensaje" class="mensaje neutro" role="status" aria-live="polite">Listo para consultar.</div>
-          <p class="seguridad">El token permanece en memoria; no se almacena en el dispositivo.</p>
+          <div id="mensaje-login" class="mensaje neutro" role="status">Ingrese credenciales para obtener JWT en sesión.</div>
+          <div id="badge-sesion" class="badge-sesion" style="display:none;">
+            <span>🟢 Sesión iniciada: <strong id="usuario-sesion"></strong></span>
+          </div>
         </section>
 
-        <section class="panel listado" aria-labelledby="titulo-vehiculos">
+        <!-- SECCIÓN 2: CATÁLOGO Y COMPRADORES -->
+        <section class="panel" aria-labelledby="titulo-catalogo">
           <div class="seccion-cabecera resultados">
-            <div class="titulo-bloque"><span class="paso">02</span><h2 id="titulo-vehiculos">Vehículos registrados</h2></div>
-            <span id="contador" class="contador">0 vehículos</span>
+            <div class="titulo-bloque">
+              <span class="paso">02</span>
+              <h2 id="titulo-catalogo">Catálogo y Compradores</h2>
+            </div>
+            <button id="btn-recargar-datos" class="boton-secundario" type="button">Cargar Datos</button>
           </div>
-          <div id="vehiculos" class="vehiculos">
-            <div class="vacio">No hay información todavía. Se debe realizar una consulta para mostrar vehículos.</div>
+          <p class="ayuda">Datos obtenidos desde <code>GET /api/vehiculos</code> y <code>GET /api/compradores</code>.</p>
+          <div id="resumen-catalogo" class="resumen-catalogo">
+            <span id="contador-vehiculos">0 vehículos disponibles</span> · 
+            <span id="contador-compradores">0 compradores</span>
+          </div>
+          <div id="lista-vehiculos-disponibles" class="vehiculos-mini"></div>
+        </section>
+
+        <!-- SECCIÓN 3: REGISTRO DE VENTA (EXCLUSIVO PWA) -->
+        <section class="panel destacado" aria-labelledby="titulo-venta">
+          <div class="seccion-cabecera">
+            <span class="paso">03</span>
+            <h2 id="titulo-venta">Registrar Venta (Exclusivo)</h2>
+          </div>
+          <p class="ayuda">Ejecuta <code>POST /api/ventas</code> con <code>Idempotency-Key</code> y JWT.</p>
+
+          <form id="form-venta" novalidate>
+            <div class="campo">
+              <label for="select-vehiculo">Vehículo</label>
+              <select id="select-vehiculo">
+                <option value="">Seleccione o cargue vehículos...</option>
+              </select>
+            </div>
+
+            <div class="campo">
+              <label for="select-comprador">Comprador</label>
+              <select id="select-comprador">
+                <option value="">Seleccione o cargue compradores...</option>
+              </select>
+            </div>
+
+            <div class="campo">
+              <label for="input-idempotency">Idempotency-Key</label>
+              <div class="fila-input">
+                <input id="input-idempotency" type="text" placeholder="Clave única (autogenerada)" />
+                <button id="btn-generar-uuid" type="button" class="boton-secundario">Nuevo UUID</button>
+              </div>
+              <small class="nota-campo">Misma clave y cuerpo = reintento seguro sin duplicar. Misma clave y cuerpo distinto = HTTP 409.</small>
+            </div>
+
+            <div class="acciones">
+              <button id="btn-registrar-venta" class="boton-primario boton-grande" type="submit">Completar Venta</button>
+            </div>
+          </form>
+
+          <div id="resultado-venta" class="resultado-caja" style="display:none;">
+            <div class="resultado-cabecera">
+              <span id="venta-http-badge" class="http-badge">HTTP ---</span>
+              <span id="venta-estado-badge" class="estado-badge">---</span>
+            </div>
+            <pre id="venta-detalle" class="json-box"></pre>
+          </div>
+        </section>
+
+        <!-- SECCIÓN 4: CONSULTA INDIVIDUAL DE VENTA -->
+        <section class="panel" aria-labelledby="titulo-consulta-venta">
+          <div class="seccion-cabecera">
+            <span class="paso">04</span>
+            <h2 id="titulo-consulta-venta">Consultar Estado de Venta</h2>
+          </div>
+          <p class="ayuda">Consulta en <code>GET /api/ventas/{id}</code> para verificar confirmación o recuperación.</p>
+
+          <div class="fila-input">
+            <input id="input-venta-id" type="number" min="1" placeholder="ID de la venta (ej. 1)" />
+            <button id="btn-consultar-venta" class="boton-primario" type="button">Consultar</button>
+          </div>
+          <div id="resultado-consulta-venta" class="resultado-caja" style="display:none; margin-top:10px;">
+            <pre id="consulta-venta-detalle" class="json-box"></pre>
           </div>
         </section>
       </main>
-      <footer><span id="conexion">Comprobando conexión…</span> · Datos proporcionados por la API REST</footer>
+
+      <footer>
+        <span id="conexion">Comprobando conexión…</span> · Puerto NGINX 8090
+      </footer>
     </div>
   </body>
 </html>

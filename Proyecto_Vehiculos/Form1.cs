@@ -13,7 +13,9 @@ namespace Proyecto_Vehiculos
     public partial class Form1 : Form
     {
         private readonly VehiculosApi _api;
-        private List<VehiculoDto> _todosLosVehiculos = new();
+        private List<VehiculoDto> _vehiculos = new();
+        private List<CompradorDto> _compradores = new();
+        private List<VentaResponseDto> _ventas = new();
 
         public Form1()
         {
@@ -23,269 +25,191 @@ namespace Proyecto_Vehiculos
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            // Token por defecto
-            txtJwt.Text = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJvcGVyYWRvciIsInJvbGVzIjpbIk9QRVJBRE9SIl19.token_de_prueba_local_2026";
-            lblMensajeEstado.Text = string.Empty;
-            lblTotalVehiculos.Text = "Total de vehículos: 0";
-            lblPermisosCompradores.Text = string.Empty;
-
-            ConfigurarGrid();
+            lblMensajeEstado.Text = "Listo. Ingrese JWT o consulte servicios.";
+            lblEndpointGateway.Text = $"Gateway NGINX: {GlobalState.BaseUrl}";
+            ConfigurarGrids();
         }
 
-        private void ConfigurarGrid()
+        private void ConfigurarGrids()
         {
+            // Grid Vehículos
             dgvVehiculos.AutoGenerateColumns = false;
             dgvVehiculos.Columns.Clear();
-
-            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "IdVehiculo", HeaderText = "IdVehiculo", Width = 70 });
-            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Marca", HeaderText = "Marca", Width = 95 });
-            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Modelo", HeaderText = "Modelo", Width = 85 });
-            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Placa", HeaderText = "Placa", Width = 80 });
-            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Chasis", HeaderText = "Chasis", Width = 90 });
-            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Anio", HeaderText = "Anio", Width = 55 });
-            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Color", HeaderText = "Color", Width = 70 });
-
-            var colPrecio = new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = "Precio",
-                HeaderText = "Precio",
-                Width = 85
-            };
+            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "IdVehiculo", HeaderText = "ID", Width = 60 });
+            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Marca", HeaderText = "Marca", Width = 110 });
+            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Modelo", HeaderText = "Modelo", Width = 110 });
+            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Placa", HeaderText = "Placa", Width = 90 });
+            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Chasis", HeaderText = "Chasis", Width = 110 });
+            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Anio", HeaderText = "Año", Width = 60 });
+            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Color", HeaderText = "Color", Width = 80 });
+            var colPrecio = new DataGridViewTextBoxColumn { DataPropertyName = "Precio", HeaderText = "Precio ($)", Width = 90 };
             colPrecio.DefaultCellStyle.Format = "0.00";
             dgvVehiculos.Columns.Add(colPrecio);
+            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Estado", HeaderText = "Estado", Width = 100 });
 
-            dgvVehiculos.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Estado", HeaderText = "Estado", Width = 95 });
+            // Grid Compradores
+            dgvCompradores.AutoGenerateColumns = false;
+            dgvCompradores.Columns.Clear();
+            dgvCompradores.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Id", HeaderText = "ID", Width = 60 });
+            dgvCompradores.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Documento", HeaderText = "Documento / Cédula", Width = 150 });
+            dgvCompradores.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Nombre", HeaderText = "Nombre Completo", Width = 220 });
+            dgvCompradores.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Correo", HeaderText = "Correo Electrónico", Width = 220 });
+
+            // Grid Ventas
+            dgvVentas.AutoGenerateColumns = false;
+            dgvVentas.Columns.Clear();
+            dgvVentas.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Id", HeaderText = "ID Venta", Width = 80 });
+            dgvVentas.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "VehiculoId", HeaderText = "ID Vehículo", Width = 90 });
+            dgvVentas.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "CompradorId", HeaderText = "ID Comprador", Width = 100 });
+            dgvVentas.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Estado", HeaderText = "Estado", Width = 110 });
+            dgvVentas.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Notificacion", HeaderText = "Notificación", Width = 110 });
+            dgvVentas.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "PrecioAcordado", HeaderText = "Precio Acordado ($)", Width = 130 });
         }
 
-        private async void btnConsultar_Click(object sender, EventArgs e)
+        private string ObtenerToken() => txtJwt.Text.Trim();
+
+        // OPERACIÓN 1: LISTAR VEHÍCULOS (GET /api/vehiculos)
+        private async void btnConsultarVehiculos_Click(object sender, EventArgs e)
         {
-            await ConsultarVehiculos(null);
+            await ConsultarVehiculos(txtMarcaFiltro.Text.Trim());
         }
 
-        private async void btnFiltrarMarca_Click(object sender, EventArgs e)
+        private async Task ConsultarVehiculos(string? marca)
         {
-            string marca = txtMarca.Text.Trim();
-            if (string.IsNullOrWhiteSpace(marca))
-            {
-                await ConsultarVehiculos(null);
-                return;
-            }
-
-            await ConsultarVehiculos(marca);
-        }
-
-        private async Task ConsultarVehiculos(string? filtroMarca)
-        {
-            btnConsultar.Enabled = false;
-            btnFiltrarMarca.Enabled = false;
-            lblMensajeEstado.Text = "Consultando...";
+            lblMensajeEstado.Text = "Consultando catálogo de vehículos...";
             lblMensajeEstado.ForeColor = Color.DarkBlue;
 
-            try
+            var res = await _api.ListarVehiculosAsync(marca, ObtenerToken());
+            if (res.IsSuccess)
             {
-                string token = txtJwt.Text.Trim();
-                if (string.IsNullOrWhiteSpace(token))
-                {
-                    lblMensajeEstado.Text = "401 Unauthorized: Falta el token JWT";
-                    lblMensajeEstado.ForeColor = Color.Crimson;
-                    dgvVehiculos.DataSource = null;
-                    lblTotalVehiculos.Text = "Total de vehículos: 0";
-                    return;
-                }
-
-                GlobalState.JwtToken = token;
-                var res = await _api.ListarVehiculosAsync(filtroMarca, token);
-
-                if (res.IsSuccess && res.Data != null && res.Data.Count > 0)
-                {
-                    _todosLosVehiculos = res.Data;
-                    dgvVehiculos.DataSource = _todosLosVehiculos;
-                    lblMensajeEstado.Text = "200 OK, permiso concedido";
-                    lblMensajeEstado.ForeColor = Color.Black;
-                    lblTotalVehiculos.Text = $"Total de vehículos: {_todosLosVehiculos.Count}";
-                }
-                else
-                {
-                    // Si el backend aún no está encendido o no responde, proveer los datos de demostración
-                    if (_todosLosVehiculos.Count == 0)
-                    {
-                        _todosLosVehiculos = GenerarDatosDemostracion();
-                    }
-
-                    var filtrados = string.IsNullOrWhiteSpace(filtroMarca)
-                        ? _todosLosVehiculos
-                        : _todosLosVehiculos.Where(v => v.Marca.Contains(filtroMarca, StringComparison.OrdinalIgnoreCase)).ToList();
-
-                    dgvVehiculos.DataSource = filtrados;
-                    lblMensajeEstado.Text = "200 OK, permiso concedido";
-                    lblMensajeEstado.ForeColor = Color.Black;
-                    lblTotalVehiculos.Text = $"Total de vehículos: {filtrados.Count}";
-                }
+                _vehiculos = res.Data ?? new List<VehiculoDto>();
+                dgvVehiculos.DataSource = _vehiculos;
+                lblTotalVehiculos.Text = $"Total: {_vehiculos.Count} vehículos";
+                lblMensajeEstado.Text = $"HTTP {(int)res.StatusCode}: Catálogo obtenido exitosamente.";
+                lblMensajeEstado.ForeColor = Color.Green;
             }
-            catch (Exception ex)
+            else
             {
-                lblMensajeEstado.Text = $"Error: {ex.Message}";
+                dgvVehiculos.DataSource = null;
+                lblMensajeEstado.Text = $"HTTP {(int)res.StatusCode}: {res.ErrorMessage}";
                 lblMensajeEstado.ForeColor = Color.Crimson;
             }
-            finally
-            {
-                btnConsultar.Enabled = true;
-                btnFiltrarMarca.Enabled = true;
-            }
         }
 
-        private async void btnVerDetalle_Click(object sender, EventArgs e)
+        // OPERACIÓN 2: CREAR VEHÍCULO (POST /api/vehiculos)
+        private async void btnCrearVehiculo_Click(object sender, EventArgs e)
         {
-            if (!int.TryParse(txtId.Text.Trim(), out int id) || id <= 0)
+            using var dialogo = new FormNuevoVehiculo();
+            if (dialogo.ShowDialog(this) == DialogResult.OK && dialogo.VehiculoCreado != null)
             {
-                MessageBox.Show("Ingrese un ID numérico de vehículo.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            btnVerDetalle.Enabled = false;
-            try
-            {
-                string token = txtJwt.Text.Trim();
-                var res = await _api.ObtenerVehiculoPorIdAsync(id, token);
-
-                VehiculoDto? vehiculo = null;
-                if (res.IsSuccess && res.Data != null)
-                {
-                    vehiculo = res.Data;
-                }
-                else
-                {
-                    vehiculo = _todosLosVehiculos.FirstOrDefault(v => v.IdVehiculo == id);
-                }
-
-                if (vehiculo != null)
-                {
-                    MessageBox.Show(
-                        $"ID: {vehiculo.IdVehiculo}\n" +
-                        $"Marca: {vehiculo.Marca}\n" +
-                        $"Modelo: {vehiculo.Modelo}\n" +
-                        $"Placa: {vehiculo.Placa}\n" +
-                        $"Chasis: {vehiculo.Chasis}\n" +
-                        $"Año: {vehiculo.Anio}\n" +
-                        $"Color: {vehiculo.Color}\n" +
-                        $"Precio: ${vehiculo.Precio:0.00}\n" +
-                        $"Estado: {vehiculo.Estado}",
-                        $"Detalle del Vehículo #{vehiculo.IdVehiculo}",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information
-                    );
-                }
-                else
-                {
-                    MessageBox.Show($"Vehículo con ID {id} no encontrado (404 Not Found).", "Detalle", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
-            finally
-            {
-                btnVerDetalle.Enabled = true;
-            }
-        }
-
-        private async void btnConsultarVenta_Click(object sender, EventArgs e)
-        {
-            if (!int.TryParse(txtIdVenta.Text.Trim(), out int idVenta) || idVenta <= 0)
-            {
-                MessageBox.Show("Ingrese un ID numérico de venta.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            btnConsultarVenta.Enabled = false;
-            try
-            {
-                string token = txtJwt.Text.Trim();
-                var res = await _api.ConsultarVentaAsync(idVenta, token);
-
-                if (res.IsSuccess && res.Data != null)
-                {
-                    MessageBox.Show(
-                        $"ID Venta: {res.Data.Id}\n" +
-                        $"ID Vehículo: {res.Data.VehiculoId}\n" +
-                        $"ID Comprador: {res.Data.CompradorId}\n" +
-                        $"Estado: {res.Data.Estado}\n" +
-                        $"Notificación: {res.Data.Notificacion}\n" +
-                        $"Precio Acordado: ${res.Data.PrecioAcordado}",
-                        $"Venta #{idVenta}",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information
-                    );
-                }
-                else
-                {
-                    MessageBox.Show(
-                        $"Venta #{idVenta}:\n" +
-                        $"Estado: COMPLETADA\n" +
-                        $"Notificación: ENVIADA\n" +
-                        $"Precio: $25000.00\n\n[200 OK]",
-                        $"Venta #{idVenta}",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information
-                    );
-                }
-            }
-            finally
-            {
-                btnConsultarVenta.Enabled = true;
-            }
-        }
-
-        private async void btnProbarPermisos_Click(object sender, EventArgs e)
-        {
-            btnProbarPermisos.Enabled = false;
-            try
-            {
-                string token = txtJwt.Text.Trim();
-                var res = await _api.ProbarPermisosCompradoresAsync(token);
-
+                lblMensajeEstado.Text = "Creando vehículo mediante POST /api/vehiculos...";
+                var res = await _api.CrearVehiculoAsync(dialogo.VehiculoCreado, ObtenerToken());
                 if (res.IsSuccess)
                 {
-                    lblPermisosCompradores.Text = $"Tienes permiso. Compradores tuyos: {res.Data}";
+                    MessageBox.Show($"Vehículo creado con éxito!\nID generado: {res.Data?.IdVehiculo}\nMarca: {res.Data?.Marca}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    await ConsultarVehiculos(null);
                 }
                 else
                 {
-                    lblPermisosCompradores.Text = "Tienes permiso. Compradores tuyos: 3";
+                    MessageBox.Show($"Error HTTP {(int)res.StatusCode}:\n{res.ErrorMessage}\n{res.RawJson}", "Error al crear vehículo", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
-                lblPermisosCompradores.ForeColor = Color.Black;
-            }
-            catch
-            {
-                lblPermisosCompradores.Text = "Tienes permiso. Compradores tuyos: 3";
-            }
-            finally
-            {
-                btnProbarPermisos.Enabled = true;
             }
         }
 
-        private static List<VehiculoDto> GenerarDatosDemostracion()
+        // OPERACIÓN 3: LISTAR COMPRADORES (GET /api/compradores)
+        private async void btnConsultarCompradores_Click(object sender, EventArgs e)
         {
-            return new List<VehiculoDto>
+            lblMensajeEstado.Text = "Consultando compradores mediante GET /api/compradores...";
+            lblMensajeEstado.ForeColor = Color.DarkBlue;
+
+            var res = await _api.ListarCompradoresAsync(ObtenerToken());
+            if (res.IsSuccess)
             {
-                new() { IdVehiculo = 1, Marca = "Toyota", Modelo = "Corolla", Placa = "ABC1232", Chasis = "1HGCMB202401", Anio = 2024, Color = "Blanco", Precio = 25000.00m, Estado = "VENDIDO" },
-                new() { IdVehiculo = 2, Marca = "Chevrolet", Modelo = "Onix", Placa = "PBC2345", Chasis = "1HGCMB202302", Anio = 2023, Color = "Negro", Precio = 22000.00m, Estado = "VENDIDO" },
-                new() { IdVehiculo = 3, Marca = "Chevrolet", Modelo = "Sportage", Placa = "TBC3456", Chasis = "1HGCMB202403", Anio = 2024, Color = "Gris", Precio = 32000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 5, Marca = "Mazda", Modelo = "CX-5", Placa = "XBC5678", Chasis = "1HGCMB202405", Anio = 2024, Color = "Rojo", Precio = 35000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 7, Marca = "Ford", Modelo = "Escape", Placa = "ZZZ9999", Chasis = "1HGCMB202507", Anio = 2025, Color = "Amarillo", Precio = 28000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 8, Marca = "Toyota", Modelo = "Corolla", Placa = "AAA1111", Chasis = "1HGCMB202508", Anio = 2025, Color = "Blanco", Precio = 25000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 9, Marca = "Hyundai", Modelo = "Tucson", Placa = "PBA4433", Chasis = "1HGCMB202409", Anio = 2024, Color = "Plata", Precio = 29500.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 10, Marca = "Nissan", Modelo = "Sentra", Placa = "TBX9821", Chasis = "1HGCMB202310", Anio = 2023, Color = "Azul", Precio = 21000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 11, Marca = "Kia", Modelo = "Rio", Placa = "PCY1029", Chasis = "1HGCMB202411", Anio = 2024, Color = "Blanco", Precio = 17500.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 12, Marca = "Volkswagen", Modelo = "T-Cross", Placa = "PDB7722", Chasis = "1HGCMB202512", Anio = 2025, Color = "Rojo", Precio = 24000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 13, Marca = "Chevrolet", Modelo = "Tracker", Placa = "PDA3344", Chasis = "1HGCMB202413", Anio = 2024, Color = "Negro", Precio = 26500.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 14, Marca = "Toyota", Modelo = "Yaris", Placa = "ABC9988", Chasis = "1HGCMB202314", Anio = 2023, Color = "Gris", Precio = 18500.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 15, Marca = "Renault", Modelo = "Duster", Placa = "PBO1234", Chasis = "1HGCMB202415", Anio = 2024, Color = "Naranja", Precio = 21500.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 16, Marca = "Suzuki", Modelo = "Jimny", Placa = "XBA6655", Chasis = "1HGCMB202516", Anio = 2025, Color = "Verde", Precio = 26000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 17, Marca = "Honda", Modelo = "CR-V", Placa = "PBL7788", Chasis = "1HGCMB202417", Anio = 2024, Color = "Blanco", Precio = 38000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 18, Marca = "Mazda", Modelo = "Mazda 3", Placa = "TBA4321", Chasis = "1HGCMB202418", Anio = 2024, Color = "Rojo", Precio = 27000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 19, Marca = "Hyundai", Modelo = "Elantra", Placa = "PCA9876", Chasis = "1HGCMB202319", Anio = 2023, Color = "Azul", Precio = 22500.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 20, Marca = "Kia", Modelo = "Sportage R", Placa = "PBC6543", Chasis = "1HGCMB202420", Anio = 2024, Color = "Plata", Precio = 28500.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 21, Marca = "Ford", Modelo = "Ranger", Placa = "XBB1122", Chasis = "1HGCMB202521", Anio = 2025, Color = "Negro", Precio = 42000.00m, Estado = "DISPONIBLE" },
-                new() { IdVehiculo = 22, Marca = "Toyota", Modelo = "Hilux", Placa = "AAA9900", Chasis = "1HGCMB202522", Anio = 2025, Color = "Blanco", Precio = 45000.00m, Estado = "DISPONIBLE" }
-            };
+                _compradores = res.Data ?? new List<CompradorDto>();
+                dgvCompradores.DataSource = _compradores;
+                lblTotalCompradores.Text = $"Total: {_compradores.Count} compradores";
+                lblMensajeEstado.Text = $"HTTP {(int)res.StatusCode}: Compradores obtenidos exitosamente.";
+                lblMensajeEstado.ForeColor = Color.Green;
+            }
+            else
+            {
+                dgvCompradores.DataSource = null;
+                lblMensajeEstado.Text = $"HTTP {(int)res.StatusCode}: {res.ErrorMessage}";
+                lblMensajeEstado.ForeColor = Color.Crimson;
+            }
+        }
+
+        // OPERACIÓN 4: CREAR COMPRADOR (POST /api/compradores)
+        private async void btnCrearComprador_Click(object sender, EventArgs e)
+        {
+            using var dialogo = new FormNuevoComprador();
+            if (dialogo.ShowDialog(this) == DialogResult.OK && dialogo.CompradorCreado != null)
+            {
+                lblMensajeEstado.Text = "Registrando comprador mediante POST /api/compradores...";
+                var res = await _api.CrearCompradorAsync(dialogo.CompradorCreado, ObtenerToken());
+                if (res.IsSuccess)
+                {
+                    MessageBox.Show($"Comprador registrado con éxito!\nID generado: {res.Data?.Id}\nNombre: {res.Data?.Nombre}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    btnConsultarCompradores_Click(sender, e);
+                }
+                else
+                {
+                    MessageBox.Show($"Error HTTP {(int)res.StatusCode}:\n{res.ErrorMessage}\n{res.RawJson}", "Error al registrar comprador", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        // OPERACIÓN 5: LISTAR VENTAS (GET /api/ventas)
+        private async void btnConsultarVentas_Click(object sender, EventArgs e)
+        {
+            lblMensajeEstado.Text = "Consultando ventas mediante GET /api/ventas...";
+            lblMensajeEstado.ForeColor = Color.DarkBlue;
+
+            var res = await _api.ListarVentasAsync(ObtenerToken());
+            if (res.IsSuccess)
+            {
+                _ventas = res.Data ?? new List<VentaResponseDto>();
+                dgvVentas.DataSource = _ventas;
+                lblTotalVentas.Text = $"Total: {_ventas.Count} ventas";
+                lblMensajeEstado.Text = $"HTTP {(int)res.StatusCode}: Ventas obtenidas exitosamente.";
+                lblMensajeEstado.ForeColor = Color.Green;
+            }
+            else
+            {
+                dgvVentas.DataSource = null;
+                lblMensajeEstado.Text = $"HTTP {(int)res.StatusCode}: {res.ErrorMessage}";
+                lblMensajeEstado.ForeColor = Color.Crimson;
+            }
+        }
+
+        // CONSULTA INDIVIDUAL POR ID DE VENTA (GET /api/ventas/{id})
+        private async void btnConsultarVentaId_Click(object sender, EventArgs e)
+        {
+            if (!int.TryParse(txtVentaIdConsulta.Text.Trim(), out int id) || id <= 0)
+            {
+                MessageBox.Show("Ingrese un ID numérico válido de venta.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var res = await _api.ConsultarVentaAsync(id, ObtenerToken());
+            if (res.IsSuccess && res.Data != null)
+            {
+                MessageBox.Show(
+                    $"Venta #{res.Data.Id}\n" +
+                    $"Vehículo ID: {res.Data.VehiculoId}\n" +
+                    $"Comprador ID: {res.Data.CompradorId}\n" +
+                    $"Estado: {res.Data.Estado}\n" +
+                    $"Notificación: {res.Data.Notificacion}\n" +
+                    $"Precio: ${res.Data.PrecioAcordado}",
+                    $"Detalle de Venta #{id}",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+            else
+            {
+                MessageBox.Show($"HTTP {(int)res.StatusCode}: {res.ErrorMessage}\n{res.RawJson}", "Error al consultar venta", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
     }
 }

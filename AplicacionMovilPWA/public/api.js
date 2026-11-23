@@ -1,53 +1,141 @@
 /**
- * Cliente HTTP de vehículos. No conoce la interfaz ni accede a MySQL.
- * La ruta relativa /api/vehiculos es reenviada por server.mjs a Spring Boot.
+ * Cliente API de la PWA Móvil para el flujo de ventas exclusivo a través de NGINX (:8090).
  */
+const BASE_URL = 'http://127.0.0.1:8090';
+
 export function normalizarToken(entrada = '') {
-  // Se aceptan tanto JWT sin prefijo como textos que empiezan con Bearer.
   return String(entrada).trim().replace(/^Bearer\s+/i, '').trim();
 }
 
-export async function listarVehiculos(entradaToken, ejecutarFetch = fetch) {
-  const jwt = normalizarToken(entradaToken);
-  const encabezados = new Headers({ Accept: 'application/json' });
+/**
+ * Inicia sesión mediante /oauth/token para obtener el JWT.
+ */
+export async function login(username, password) {
+  const params = new URLSearchParams();
+  params.append('grant_type', 'password');
+  params.append('username', username);
+  params.append('password', password);
 
-  // Si no hay JWT, el backend es quien determina si responde HTTP 401.
-  if (jwt) encabezados.set('Authorization', `Bearer ${jwt}`);
+  // Basic auth para el cliente de la aplicación
+  const credenciales = btoa('vehiculos-client:cliente-local-aula-2026-cambiar');
 
-  let respuesta;
-  try {
-    // No se almacena en caché la respuesta con datos protegidos.
-    respuesta = await ejecutarFetch('/api/vehiculos', {
-      method: 'GET',
-      headers: encabezados,
-      cache: 'no-store',
-    });
-  } catch {
-    throw new Error('No se pudo conectar con el servicio. Compruebe la red y Spring Boot.');
+  const res = await fetch(`${BASE_URL}/oauth/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': `Basic ${credenciales}`,
+      'Accept': 'application/json'
+    },
+    body: params.toString()
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorMsg = data.error_description || data.mensaje || data.error || `HTTP ${res.status}: Credenciales inválidas`;
+    const err = new Error(errorMsg);
+    err.status = res.status;
+    throw err;
   }
 
-  if (!respuesta.ok) {
-    const mensajes = {
-      401: 'HTTP 401: JWT ausente, inválido o vencido.',
-      403: 'HTTP 403: el usuario no tiene permiso para consultar.',
-      404: 'HTTP 404: no se encontró /api/vehiculos.',
-      502: 'HTTP 502: no se pudo establecer conexión con Spring Boot.',
-      503: 'HTTP 503: el servicio no está disponible.',
-      504: 'HTTP 504: Spring Boot no respondió a tiempo.',
-    };
-    const error = new Error(mensajes[respuesta.status] || `HTTP ${respuesta.status}: consulta no completada.`);
-    error.codigoHttp = respuesta.status;
-    throw error;
-  }
+  return {
+    status: res.status,
+    accessToken: data.access_token,
+    tokenType: data.token_type,
+    expiresIn: data.expires_in,
+    usuario: username
+  };
+}
 
-  let datos;
-  try {
-    datos = await respuesta.json();
-  } catch {
-    throw new Error('La API devolvió una respuesta que no es JSON válido.');
+/**
+ * Consulta el catálogo de vehículos autorizados.
+ */
+export async function listarVehiculos(token) {
+  const jwt = normalizarToken(token);
+  const headers = { 'Accept': 'application/json' };
+  if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+
+  const res = await fetch(`${BASE_URL}/api/vehiculos`, { method: 'GET', headers, cache: 'no-store' });
+  const data = await res.json().catch(() => []);
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}: ${data.title || data.mensaje || 'Error consultando vehículos'}`);
+    err.status = res.status;
+    throw err;
   }
-  if (!Array.isArray(datos)) {
-    throw new Error('La API debe devolver un arreglo JSON de vehículos.');
+  return { status: res.status, vehiculos: Array.isArray(data) ? data : [] };
+}
+
+/**
+ * Consulta la lista de compradores registrados.
+ */
+export async function listarCompradores(token) {
+  const jwt = normalizarToken(token);
+  const headers = { 'Accept': 'application/json' };
+  if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+
+  const res = await fetch(`${BASE_URL}/api/compradores`, { method: 'GET', headers, cache: 'no-store' });
+  const data = await res.json().catch(() => []);
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}: ${data.title || data.mensaje || 'Error consultando compradores'}`);
+    err.status = res.status;
+    throw err;
   }
-  return { codigoHttp: respuesta.status, vehiculos: datos };
+  return { status: res.status, compradores: Array.isArray(data) ? data : [] };
+}
+
+/**
+ * Registra una venta comercial con Idempotency-Key.
+ */
+export async function registrarVenta(token, vehiculoId, compradorId, idempotencyKey = null) {
+  const jwt = normalizarToken(token);
+  const key = idempotencyKey || crypto.randomUUID();
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${jwt}`,
+    'Idempotency-Key': key
+  };
+
+  const body = {
+    vehiculoId: Number(vehiculoId),
+    compradorId: Number(compradorId)
+  };
+
+  const res = await fetch(`${BASE_URL}/api/ventas`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json().catch(() => ({}));
+  return {
+    status: res.status,
+    idempotencyKey: key,
+    data
+  };
+}
+
+/**
+ * Consulta el estado de una venta por ID.
+ */
+export async function consultarVenta(token, ventaId) {
+  const jwt = normalizarToken(token);
+  const headers = {
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${jwt}`
+  };
+
+  const res = await fetch(`${BASE_URL}/api/ventas/${ventaId}`, {
+    method: 'GET',
+    headers,
+    cache: 'no-store'
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}: ${data.title || data.mensaje || 'Venta no encontrada'}`);
+    err.status = res.status;
+    throw err;
+  }
+  return { status: res.status, venta: data };
 }

@@ -18,11 +18,17 @@ public class NotificacionKeyFilter extends OncePerRequestFilter{
         if(key.length()<32) throw new IllegalArgumentException("Clave no cumple los 32 crt");
         this.key=key;
     }
-     @Override
+    @Override
     protected void doFilterInternal(HttpServletRequest req,
     HttpServletResponse res, FilterChain chain)
     throws IOException, ServletException {
   
+    // Permitir consultas GET (utilizadas por JavaFX) sin exponer clave interna
+    if ("GET".equalsIgnoreCase(req.getMethod())) {
+        chain.doFilter(req, res);
+        return;
+    }
+
     String h=req.getHeader("X-Notification-Key");
     if (h==null || !MessageDigest.isEqual(
         key.getBytes(StandardCharsets.UTF_8),
@@ -30,15 +36,9 @@ public class NotificacionKeyFilter extends OncePerRequestFilter{
             res.setStatus(401);
             res.setContentType("application/problem+json");
             res.getWriter().write("{\"status\":401, \"title\":\"Clave no valida\"}");
-            //res.getWriter().write("{\"title\":\"Clave no valida\",\"status\":401}");
-
             return;
-            
-
         }
         chain.doFilter(req,res);
-  
-
- }
+    }
 
 } 

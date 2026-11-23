@@ -18,7 +18,7 @@ const TIPOS = {
 
 export function crearServidor({
   directorio = resolve(ROOT, 'public'),
-  apiBase = process.env.API_BASE_URL || 'http://127.0.0.1:8080',
+  apiBase = process.env.API_BASE_URL || 'http://127.0.0.1:8090',
 } = {}) {
   const carpeta = resolve(directorio);
 
@@ -28,32 +28,42 @@ export function crearServidor({
     respuesta.setHeader('Referrer-Policy', 'no-referrer');
     respuesta.setHeader('Cache-Control', 'no-store');
 
-    // El servidor no incorpora una API de ventas ni expone secretos internos.
-    if (url.pathname.startsWith('/api/')) {
-      if (url.pathname !== '/api/vehiculos' || peticion.method !== 'GET') {
-        respuesta.writeHead(404, { 'Content-Type': 'application/json' });
-        respuesta.end(JSON.stringify({ error: 'Endpoint no disponible' }));
-        return;
-      }
+    // Reenvío de llamadas REST hacia NGINX (:8090)
+    if (url.pathname.startsWith('/api/') || url.pathname === '/oauth/token') {
       const abortador = new AbortController();
-      const temporizador = setTimeout(() => abortador.abort(), 12000);
+      const temporizador = setTimeout(() => abortador.abort(), 15000);
       try {
-        const encabezados = { Accept: 'application/json' };
-        if (peticion.headers.authorization) {
-          encabezados.Authorization = peticion.headers.authorization;
+        const encabezados = {};
+        for (const [k, v] of Object.entries(peticion.headers)) {
+          if (!['host', 'connection'].includes(k.toLowerCase())) {
+            encabezados[k] = v;
+          }
         }
-        const remoto = await fetch(`${apiBase.replace(/\/$/, '')}/api/vehiculos`, {
-          method: 'GET', headers: encabezados, signal: abortador.signal, cache: 'no-store',
+
+        let cuerpo = undefined;
+        if (['POST', 'PUT', 'PATCH'].includes(peticion.method)) {
+          const chunks = [];
+          for await (const chunk of peticion) chunks.push(chunk);
+          cuerpo = Buffer.concat(chunks);
+        }
+
+        const remoto = await fetch(`${apiBase.replace(/\/$/, '')}${url.pathname}${url.search}`, {
+          method: peticion.method,
+          headers: encabezados,
+          body: cuerpo,
+          signal: abortador.signal,
+          cache: 'no-store',
         });
+
         respuesta.writeHead(remoto.status, {
           'Content-Type': remoto.headers.get('content-type') || 'application/json; charset=utf-8',
-          'Cache-Control': 'no-store', 'Vary': 'Authorization',
+          'Cache-Control': 'no-store',
         });
         respuesta.end(Buffer.from(await remoto.arrayBuffer()));
       } catch (error) {
         const tiempoAgotado = error.name === 'AbortError';
         respuesta.writeHead(tiempoAgotado ? 504 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
-        respuesta.end(JSON.stringify({ error: tiempoAgotado ? 'Tiempo de espera agotado' : 'API Java no disponible' }));
+        respuesta.end(JSON.stringify({ error: tiempoAgotado ? 'Tiempo de espera agotado' : 'Gateway NGINX no disponible' }));
       } finally {
         clearTimeout(temporizador);
       }

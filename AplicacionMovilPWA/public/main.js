@@ -1,141 +1,261 @@
-import { listarVehiculos } from './api.js';
+import { login, listarVehiculos, listarCompradores, registrarVenta, consultarVenta } from './api.js';
 
-// Referencias a los controles de la interfaz móvil.
-const formulario = document.querySelector('#formulario');
-const campoToken = document.querySelector('#jwt');
-const botonConsultar = document.querySelector('#consultar');
-const botonBorrar = document.querySelector('#borrar');
-const botonMostrar = document.querySelector('#alternarToken');
-const mensaje = document.querySelector('#mensaje');
-const contenedor = document.querySelector('#vehiculos');
-const contador = document.querySelector('#contador');
+// Estado de sesión en memoria volátil (nunca persistido en disco)
+let tokenEnMemoria = null;
+let usuarioEnMemoria = null;
+
+// Elementos del DOM
+const formLogin = document.querySelector('#form-login');
+const inputUsuario = document.querySelector('#login-usuario');
+const inputPassword = document.querySelector('#login-password');
+const btnLogin = document.querySelector('#btn-login');
+const btnLogout = document.querySelector('#btn-logout');
+const mensajeLogin = document.querySelector('#mensaje-login');
+const badgeSesion = document.querySelector('#badge-sesion');
+const labelUsuarioSesion = document.querySelector('#usuario-sesion');
+
+const btnRecargarDatos = document.querySelector('#btn-recargar-datos');
+const contadorVehiculos = document.querySelector('#contador-vehiculos');
+const contadorCompradores = document.querySelector('#contador-compradores');
+const listaVehiculosDisp = document.querySelector('#lista-vehiculos-disponibles');
+
+const formVenta = document.querySelector('#form-venta');
+const selectVehiculo = document.querySelector('#select-vehiculo');
+const selectComprador = document.querySelector('#select-comprador');
+const inputIdempotency = document.querySelector('#input-idempotency');
+const btnGenerarUuid = document.querySelector('#btn-generar-uuid');
+const resultadoVenta = document.querySelector('#resultado-venta');
+const ventaHttpBadge = document.querySelector('#venta-http-badge');
+const ventaEstadoBadge = document.querySelector('#venta-estado-badge');
+const ventaDetalle = document.querySelector('#venta-detalle');
+
+const inputVentaId = document.querySelector('#input-venta-id');
+const btnConsultarVenta = document.querySelector('#btn-consultar-venta');
+const resultadoConsultaVenta = document.querySelector('#resultado-consulta-venta');
+const consultaVentaDetalle = document.querySelector('#consulta-venta-detalle');
 const conexion = document.querySelector('#conexion');
 
+// Formato de moneda
 const moneda = new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' });
 
-function mostrarMensaje(texto, tipo = 'neutro') {
-  mensaje.textContent = texto;
-  mensaje.className = `mensaje ${tipo}`;
+function setMensajeLogin(texto, tipo = 'neutro') {
+  mensajeLogin.textContent = texto;
+  mensajeLogin.className = `mensaje ${tipo}`;
 }
 
-function limpiarListado() {
-  contenedor.replaceChildren();
-  contador.textContent = '0 vehículos';
+function generarUuid() {
+  const uuid = crypto.randomUUID();
+  inputIdempotency.value = uuid;
+  return uuid;
 }
 
-function crearElemento(etiqueta, clase, contenido) {
-  const elemento = document.createElement(etiqueta);
-  if (clase) elemento.className = clase;
-  // textContent impide interpretar HTML que pudiera venir de la API.
-  if (contenido !== undefined) elemento.textContent = String(contenido);
-  return elemento;
-}
+// Inicializar UUID para idempotencia
+generarUuid();
+btnGenerarUuid.addEventListener('click', () => generarUuid());
 
-function texto(valor) {
-  return valor === null || valor === undefined || valor === '' ? '—' : String(valor);
-}
+// 1. GESTIÓN DE SESIÓN Y LOGIN
+formLogin.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const u = inputUsuario.value.trim();
+  const p = inputPassword.value;
 
-function precio(valor) {
-  if (valor === null || valor === undefined || valor === '') return '—';
-  const numero = Number(valor);
-  return Number.isFinite(numero) ? moneda.format(numero) : texto(valor);
-}
-
-function agregarDato(grilla, etiqueta, valor, extra = '') {
-  const grupo = crearElemento('div', extra);
-  grupo.append(
-    crearElemento('span', 'dato-etiqueta', etiqueta),
-    crearElemento('span', 'dato-valor', valor),
-  );
-  grilla.append(grupo);
-}
-
-function pintarListado(vehiculos) {
-  limpiarListado();
-  contador.textContent = `${vehiculos.length} vehículo${vehiculos.length === 1 ? '' : 's'}`;
-
-  if (vehiculos.length === 0) {
-    contenedor.append(crearElemento('p', 'vacio', 'HTTP 200: no hay vehículos registrados.'));
+  if (!u || !p) {
+    setMensajeLogin('Ingrese usuario y contraseña.', 'error');
     return;
   }
 
-  // Se crea una tarjeta adaptable al tamaño de un teléfono por cada registro.
-  for (const vehiculo of vehiculos) {
-    const tarjeta = crearElemento('article', 'vehiculo');
-    const cabecera = crearElemento('div', 'vehiculo-cabecera');
-    const encabezado = crearElemento('div');
-    encabezado.append(
-      crearElemento('h3', 'vehiculo-titulo', `${texto(vehiculo.marca)} ${texto(vehiculo.modelo)}`),
-      crearElemento('span', 'vehiculo-id', `ID: ${texto(vehiculo.idVehiculo ?? vehiculo.id)}`),
-    );
+  btnLogin.disabled = true;
+  setMensajeLogin('Autenticando con /oauth/token…', 'neutro');
 
-    const estado = texto(vehiculo.estado);
-    const claseEstado = String(estado).toUpperCase() === 'DISPONIBLE' ? 'disponible'
-      : String(estado).toUpperCase() === 'VENDIDO' ? 'vendido' : '';
-    cabecera.append(encabezado, crearElemento('span', `estado ${claseEstado}`, estado));
+  try {
+    const res = await login(u, p);
+    tokenEnMemoria = res.accessToken;
+    usuarioEnMemoria = res.usuario;
 
-    const grilla = crearElemento('div', 'datos');
-    agregarDato(grilla, 'Placa', texto(vehiculo.placa));
-    agregarDato(grilla, 'Año', texto(vehiculo.anio));
-    agregarDato(grilla, 'Color', texto(vehiculo.color));
-    agregarDato(grilla, 'Precio', precio(vehiculo.precio), 'dato-precio');
-    tarjeta.append(cabecera, grilla);
-    contenedor.append(tarjeta);
+    setMensajeLogin(`HTTP ${res.status}: Sesión iniciada con éxito. Token emitido.`, 'exito');
+    badgeSesion.style.display = 'block';
+    labelUsuarioSesion.textContent = usuarioEnMemoria;
+    btnLogin.style.display = 'none';
+    btnLogout.style.display = 'inline-block';
+
+    // Cargar datos automáticamente tras login
+    await cargarDatos();
+  } catch (error) {
+    tokenEnMemoria = null;
+    usuarioEnMemoria = null;
+    setMensajeLogin(error.message, 'error');
+    badgeSesion.style.display = 'none';
+  } finally {
+    btnLogin.disabled = false;
+  }
+});
+
+btnLogout.addEventListener('click', () => {
+  tokenEnMemoria = null;
+  usuarioEnMemoria = null;
+  badgeSesion.style.display = 'none';
+  btnLogin.style.display = 'inline-block';
+  btnLogout.style.display = 'none';
+  setMensajeLogin('Sesión cerrada. Token eliminado de la memoria.', 'neutro');
+
+  // Limpiar listas
+  selectVehiculo.innerHTML = '<option value="">Inicie sesión para cargar vehículos...</option>';
+  selectComprador.innerHTML = '<option value="">Inicie sesión para cargar compradores...</option>';
+  contadorVehiculos.textContent = '0 vehículos disponibles';
+  contadorCompradores.textContent = '0 compradores';
+  listaVehiculosDisp.innerHTML = '';
+});
+
+// 2. CARGA DE CATÁLOGO Y COMPRADORES
+async function cargarDatos() {
+  if (!tokenEnMemoria) {
+    setMensajeLogin('Se requiere iniciar sesión antes de cargar datos.', 'error');
+    return;
+  }
+
+  btnRecargarDatos.disabled = true;
+  btnRecargarDatos.textContent = 'Cargando…';
+
+  try {
+    const [resVeh, resComp] = await Promise.all([
+      listarVehiculos(tokenEnMemoria).catch((err) => ({ status: err.status || 500, vehiculos: [] })),
+      listarCompradores(tokenEnMemoria).catch((err) => ({ status: err.status || 500, compradores: [] }))
+    ]);
+
+    // Filtrar solo vehículos disponibles para venta
+    const disponibles = resVeh.vehiculos.filter(v => String(v.estado).toUpperCase() === 'DISPONIBLE');
+    contadorVehiculos.textContent = `${disponibles.length} disponibles (de ${resVeh.vehiculos.length})`;
+    contadorCompradores.textContent = `${resComp.compradores.length} compradores`;
+
+    // Llenar selectores
+    selectVehiculo.innerHTML = '<option value="">-- Seleccione un vehículo disponible --</option>';
+    disponibles.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.idVehiculo ?? v.id;
+      opt.textContent = `ID #${v.idVehiculo ?? v.id} - ${v.marca} ${v.modelo} (${v.color}) - ${moneda.format(v.precio || 0)}`;
+      selectVehiculo.appendChild(opt);
+    });
+
+    selectComprador.innerHTML = '<option value="">-- Seleccione un comprador --</option>';
+    resComp.compradores.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = `ID #${c.id} - ${c.nombre} (Doc: ${c.documento})`;
+      selectComprador.appendChild(opt);
+    });
+
+    // Renderizar tarjetas compactas
+    listaVehiculosDisp.innerHTML = '';
+    disponibles.slice(0, 4).forEach(v => {
+      const card = document.createElement('div');
+      card.className = 'card-mini';
+      card.innerHTML = `<strong>#${v.idVehiculo ?? v.id} ${v.marca} ${v.modelo}</strong><span>${moneda.format(v.precio || 0)}</span>`;
+      card.addEventListener('click', () => {
+        selectVehiculo.value = v.idVehiculo ?? v.id;
+      });
+      listaVehiculosDisp.appendChild(card);
+    });
+
+  } finally {
+    btnRecargarDatos.disabled = false;
+    btnRecargarDatos.textContent = 'Recargar';
   }
 }
 
-formulario.addEventListener('submit', async (evento) => {
-  evento.preventDefault();
-  botonConsultar.disabled = true;
-  botonBorrar.disabled = true;
-  limpiarListado();
-  mostrarMensaje('Consultando vehículos…');
+btnRecargarDatos.addEventListener('click', cargarDatos);
+
+// 3. REGISTRO EXCLUSIVO DE VENTAS (POST /api/ventas)
+formVenta.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  if (!tokenEnMemoria) {
+    alert('Debe iniciar sesión primero en el Paso 01.');
+    return;
+  }
+
+  const vId = selectVehiculo.value;
+  const cId = selectComprador.value;
+  const key = inputIdempotency.value.trim() || generarUuid();
+
+  if (!vId || !cId) {
+    alert('Seleccione un vehículo y un comprador para realizar la venta.');
+    return;
+  }
+
+  const btnVenta = document.querySelector('#btn-registrar-venta');
+  btnVenta.disabled = true;
+  btnVenta.textContent = 'Procesando venta con NGINX…';
+  resultadoVenta.style.display = 'none';
 
   try {
-    const respuesta = await listarVehiculos(campoToken.value);
-    pintarListado(respuesta.vehiculos);
-    mostrarMensaje(`HTTP ${respuesta.codigoHttp}: ${respuesta.vehiculos.length} vehículo(s) consultado(s).`, 'exito');
-  } catch (error) {
-    // Ante fallos se mantienen vacíos los resultados; nunca se inventan datos.
-    mostrarMensaje(error.message, 'error');
-    contador.textContent = '0 vehículos';
-    contenedor.append(crearElemento('p', 'vacio', 'No hay datos disponibles para mostrar.'));
+    const res = await registrarVenta(tokenEnMemoria, vId, cId, key);
+
+    resultadoVenta.style.display = 'block';
+    ventaHttpBadge.textContent = `HTTP ${res.status}`;
+    ventaHttpBadge.className = `http-badge http-${res.status}`;
+
+    const estado = res.data?.estado || (res.status === 201 ? 'COMPLETADA' : res.status === 202 ? 'EN_REVISION' : 'RECHAZADA');
+    ventaEstadoBadge.textContent = estado;
+    ventaEstadoBadge.className = `estado-badge estado-${estado.toLowerCase()}`;
+
+    ventaDetalle.textContent = JSON.stringify({
+      httpStatus: res.status,
+      idempotencyKeyEnviada: res.idempotencyKey,
+      respuestaServicio: res.data
+    }, null, 2);
+
+    // Si la venta fue exitosa, actualizar ID para consulta y refrescar catálogo
+    if (res.status === 201 || res.status === 202) {
+      if (res.data?.id) inputVentaId.value = res.data.id;
+      await cargarDatos();
+    }
+  } catch (err) {
+    resultadoVenta.style.display = 'block';
+    ventaHttpBadge.textContent = 'ERROR';
+    ventaHttpBadge.className = 'http-badge http-500';
+    ventaDetalle.textContent = String(err.message);
   } finally {
-    botonConsultar.disabled = false;
-    botonBorrar.disabled = false;
+    btnVenta.disabled = false;
+    btnVenta.textContent = 'Completar Venta';
   }
 });
 
-botonMostrar.addEventListener('click', () => {
-  const revelar = campoToken.type === 'password';
-  campoToken.type = revelar ? 'text' : 'password';
-  botonMostrar.textContent = revelar ? 'Ocultar' : 'Mostrar';
-  botonMostrar.setAttribute('aria-pressed', String(revelar));
-  botonMostrar.setAttribute('aria-label', revelar ? 'Ocultar token' : 'Mostrar token');
+// 4. CONSULTA INDIVIDUAL DE VENTA (GET /api/ventas/{id})
+btnConsultarVenta.addEventListener('click', async () => {
+  if (!tokenEnMemoria) {
+    alert('Debe iniciar sesión primero para consultar ventas.');
+    return;
+  }
+  const vId = inputVentaId.value.trim();
+  if (!vId) {
+    alert('Ingrese un ID de venta.');
+    return;
+  }
+
+  btnConsultarVenta.disabled = true;
+  try {
+    const res = await consultarVenta(tokenEnMemoria, vId);
+    resultadoConsultaVenta.style.display = 'block';
+    consultaVentaDetalle.textContent = JSON.stringify(res.venta, null, 2);
+  } catch (err) {
+    resultadoConsultaVenta.style.display = 'block';
+    consultaVentaDetalle.textContent = `Error: ${err.message}`;
+  } finally {
+    btnConsultarVenta.disabled = false;
+  }
 });
 
-botonBorrar.addEventListener('click', () => {
-  campoToken.value = '';
-  campoToken.type = 'password';
-  botonMostrar.textContent = 'Mostrar';
-  botonMostrar.setAttribute('aria-pressed', 'false');
-  botonMostrar.setAttribute('aria-label', 'Mostrar token');
-  mostrarMensaje('Token borrado del formulario.');
-  campoToken.focus();
-});
-
+// Estado de conexión a red
 function actualizarConexion() {
-  conexion.textContent = navigator.onLine ? 'Navegador conectado' : 'Sin conexión de red';
+  conexion.textContent = navigator.onLine ? 'Navegador en línea' : 'Sin conexión de red';
 }
 window.addEventListener('online', actualizarConexion);
 window.addEventListener('offline', actualizarConexion);
 actualizarConexion();
 
-// El Service Worker conserva únicamente recursos visuales, nunca el JWT ni /api.
+// Registro del Service Worker
 if ('serviceWorker' in navigator && window.isSecureContext) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // La consulta REST sigue funcionando aunque no se instale el modo PWA.
-    });
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
