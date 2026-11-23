@@ -11,8 +11,8 @@
 	<groupId>ec.edu.uta</groupId>
 	<artifactId>venta-vehiculos-api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<name>venta-vehiculos-api</name>
+	<description>API de vehículos con seguridad JWT y control de concurrencia</description>
 	<url/>
 	<licenses>
 		<license/>
