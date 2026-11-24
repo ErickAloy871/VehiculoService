@@ -155,6 +155,13 @@ def notificar(id):
         if v is None or v.estado != "COMPLETADA" or v.notificacion == "ENVIADA":
             return
 
+        # Publicar SIEMPRE a RabbitMQ para desacoplamiento asíncrono persistente (P17, P19, P20)
+        try:
+            from app.publisher import publicar_evento_venta
+            publicar_evento_venta(v.id, v.vehiculo_id, f"Venta {v.id} operacion {v.operacion_id} completada")
+        except Exception as ex_rabbit:
+            logger.warning("Fallo al publicar en RabbitMQ en notificar(): %s", ex_rabbit)
+
         cid = get_correlation_id()
         try:
             r = httpx.post(
@@ -175,12 +182,6 @@ def notificar(id):
                 v.notificacion = "ENVIADA"
                 v.intentos = 0
                 v.proximo_intento_utc = None
-                # Publicar evento a RabbitMQ para la cola notificaciones.ventas
-                try:
-                    from app.publisher import publicar_evento_venta
-                    publicar_evento_venta(v.id, v.vehiculo_id, f"Venta {v.id} operacion {v.operacion_id} completada")
-                except Exception as ex_rabbit:
-                    logger.warning("Fallo al publicar en RabbitMQ en notificar(): %s", ex_rabbit)
             else:
                 v.notificacion = "PENDIENTE"
                 _aplicar_espera_progresiva(v)

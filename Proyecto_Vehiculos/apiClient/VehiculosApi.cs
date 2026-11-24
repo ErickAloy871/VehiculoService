@@ -13,7 +13,7 @@ namespace Proyecto_Vehiculos.apiClient
 {
     public class VehiculosApi
     {
-        private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(10) };
+        private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
             PropertyNameCaseInsensitive = true

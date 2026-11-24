@@ -1,4 +1,5 @@
 """Publicador de eventos de venta hacia RabbitMQ para la cola notificaciones.ventas."""
+import os
 import json
 import logging
 import uuid
@@ -7,16 +8,18 @@ import pika
 
 logger = logging.getLogger(__name__)
 
-RABBITMQ_HOST = "localhost"
-RABBITMQ_PORT = 5672
-QUEUE_NAME = "notificaciones.ventas"
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
+RABBITMQ_USER = os.getenv("RABBITMQ_USER", "guest")
+RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "guest")
+QUEUE_NAME = os.getenv("RABBITMQ_QUEUE", "notificaciones.ventas")
 
 
 def publicar_evento_venta(venta_id: int, vehiculo_id: int, mensaje: str | None = None) -> bool:
-    """Publica un mensaje persistente en la cola durable de RabbitMQ."""
+    """Publica un mensaje persistente en la cola durable de RabbitMQ sin credenciales quemadas."""
     connection = None
     try:
-        credentials = pika.PlainCredentials("guest", "guest")
+        credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
         parameters = pika.ConnectionParameters(
             host=RABBITMQ_HOST,
             port=RABBITMQ_PORT,
