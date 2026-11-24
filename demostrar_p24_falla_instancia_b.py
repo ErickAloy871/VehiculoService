@@ -7,7 +7,10 @@ import httpx
 import json
 import subprocess
 import time
+import os
 
+CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "vehiculos-client")
+CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", "cliente-local-aula-2026-cambiar")
 NGINX_URL = "http://127.0.0.1:8090"
 
 print("================================================================================")
@@ -18,7 +21,7 @@ print("=========================================================================
 print("\n[PASO 1] Obteniendo token JWT...")
 r_tok = httpx.post(
     f"{NGINX_URL}/oauth/token",
-    auth=("vehiculos-client", "cliente-local-aula-2026-cambiar"),
+    auth=(CLIENT_ID, CLIENT_SECRET),
     data={"grant_type": "password", "username": "operador", "password": "operador123"},
     timeout=6
 )

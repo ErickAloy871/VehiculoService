@@ -4,7 +4,10 @@ Demuestra el rechazo de venta sobre vehículo NO DISPONIBLE (HTTP 409) o INEXIST
 """
 import httpx
 import json
+import os
 
+CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "vehiculos-client")
+CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", "cliente-local-aula-2026-cambiar")
 NGINX_URL = "http://127.0.0.1:8090"
 
 print("================================================================================")
@@ -15,7 +18,7 @@ print("=========================================================================
 print("\n[1/3] Autenticando con usuario 'operador' en NGINX...")
 res_token = httpx.post(
     f"{NGINX_URL}/oauth/token",
-    auth=("vehiculos-client", "cliente-local-aula-2026-cambiar"),
+    auth=(CLIENT_ID, CLIENT_SECRET),
     data={"grant_type": "password", "username": "operador", "password": "operador123"},
     timeout=8
 )

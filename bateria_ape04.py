@@ -7,7 +7,18 @@ import sys
 import time
 import uuid
 import json
+import os
 import httpx
+
+# Desacoplamiento de credenciales y secretos (Requisito P28)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "vehiculos-client")
+OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", os.getenv("CLIENT_SECRET", "cliente-local-aula-2026-cambiar"))
 
 NGINX_URL = "http://127.0.0.1:8090"
 RABBITMQ_API = "http://127.0.0.1:15672/api"
@@ -37,7 +48,7 @@ def obtener_token(usuario="operador", password="operador123"):
     try:
         r = httpx.post(
             f"{NGINX_URL}/oauth/token",
-            auth=("vehiculos-client", "cliente-local-aula-2026-cambiar"),
+            auth=(OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET),
             data={"grant_type": "password", "username": usuario, "password": password},
             timeout=6
         )
@@ -67,7 +78,7 @@ def ejecutar_bateria():
     try:
         r_inv = httpx.post(
             f"{NGINX_URL}/oauth/token",
-            auth=("vehiculos-client", "cliente-local-aula-2026-cambiar"),
+            auth=(OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET),
             data={"grant_type": "password", "username": "operador", "password": "password_incorrecta"},
             timeout=4
         )

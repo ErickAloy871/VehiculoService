@@ -1,10 +1,14 @@
 import httpx
 import json
+import os
+
+CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "vehiculos-client")
+CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", "cliente-local-aula-2026-cambiar")
 
 # 1. Obtener token
 r_tok = httpx.post(
     'http://127.0.0.1:8090/oauth/token',
-    auth=('vehiculos-client', 'cliente-local-aula-2026-cambiar'),
+    auth=(CLIENT_ID, CLIENT_SECRET),
     data={'grant_type': 'password', 'username': 'operador', 'password': 'operador123'},
     timeout=6
 )

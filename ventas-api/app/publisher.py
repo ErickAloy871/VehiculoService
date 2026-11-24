@@ -8,10 +8,17 @@ import pika
 
 logger = logging.getLogger(__name__)
 
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+# Desacoplamiento de configuración y credenciales mediante variables de entorno (P28)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "127.0.0.1")
 RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
-RABBITMQ_USER = os.getenv("RABBITMQ_USER", "guest")
-RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "guest")
+RABBITMQ_USER = os.getenv("RABBITMQ_USER", "")
+RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "")
 QUEUE_NAME = os.getenv("RABBITMQ_QUEUE", "notificaciones.ventas")
 
 

@@ -5,7 +5,10 @@ al intentar registrar una venta con un usuario de rol CONSULTA.
 """
 import httpx
 import json
+import os
 
+CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "vehiculos-client")
+CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", "cliente-local-aula-2026-cambiar")
 NGINX_URL = "http://127.0.0.1:8090"
 
 print("================================================================================")
@@ -16,7 +19,7 @@ print("=========================================================================
 print("\n[1/2] Solicitando JWT para usuario 'consulta' (Rol: CONSULTA)...")
 res_token = httpx.post(
     f"{NGINX_URL}/oauth/token",
-    auth=("vehiculos-client", "cliente-local-aula-2026-cambiar"),
+    auth=(CLIENT_ID, CLIENT_SECRET),
     data={"grant_type": "password", "username": "consulta", "password": "operador123"},
     timeout=8
 )

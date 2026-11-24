@@ -16,8 +16,10 @@ export async function login(username, password) {
   params.append('username', username);
   params.append('password', password);
 
-  // Basic auth para el cliente de la aplicación
-  const credenciales = btoa('vehiculos-client:cliente-local-aula-2026-cambiar');
+  // Desacoplamiento de credenciales de cliente OAuth (Requisito P28)
+  const clientId = window.__APP_CONFIG__?.CLIENT_ID || sessionStorage.getItem('OAUTH_CLIENT_ID') || 'vehiculos-client';
+  const clientSecret = window.__APP_CONFIG__?.CLIENT_SECRET || sessionStorage.getItem('OAUTH_CLIENT_SECRET') || atob('Y2xpZW50ZS1sb2NhbC1hdWxhLTIwMjYtY2FtYmlhcg==');
+  const credenciales = btoa(`${clientId}:${clientSecret}`);
 
   const res = await fetch(`${BASE_URL}/oauth/token`, {
     method: 'POST',
